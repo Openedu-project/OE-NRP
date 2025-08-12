@@ -4,8 +4,9 @@ use std::hash::RandomState;
 use near_sdk::{env, json_types::U128, near_bindgen, AccountId, Balance, Gas, PromiseOrValue};
 
 use crate::models::{
-    contract::{Launchpad, LaunchpadExt, LaunchpadFeature, UserTokenDepositRecord, PoolMetadata}, ft_request::external::cross_edu
+    contract::{Assets, Launchpad, LaunchpadExt, LaunchpadFeature, PoolMetadata, Status, UserTokenDepositRecord}, ft_request::external::cross_edu
 };
+
 
 pub const GAS_FOR_CROSS_CALL: Gas = Gas(3_000_000_000_000);
 pub const GAS_FOR_FT_TRANSFER_CALL: Gas = Gas(300_000_000_000_000);
@@ -14,8 +15,9 @@ pub const ATTACHED_STORAGE_DEPOSIT: u128 = 1_250_000_000_000_000_000_000;
 
 #[near_bindgen]
 impl LaunchpadFeature for Launchpad {
+
     #[payable]
-    fn init_pool(&mut self, campaign_id: String, token_id: AccountId, mint_multiple_pledge: u8) -> PoolMetadata {
+    fn init_pool(&mut self, campaign_id: String, token_id: AccountId, mint_multiple_pledge: u8, time_start_pledge: u64, time_end_pledge: u64) -> PoolMetadata {
         let pool_id = self.all_pool_id.len() as u64 + 1;
         let creator_id = env::signer_account_id();
         let staking_amount = env::attached_deposit();
@@ -32,16 +34,32 @@ impl LaunchpadFeature for Launchpad {
             status: Status::INIT,
             token_id,
             total_balance: 0,
+            time_start_pledge,
+            time_end_pledge,
             mint_multiple_pledge,
             user_records: Vec::new(),
         };
-        self.all_pool_id.push(pool_id);
+        self.all_pool_id.insert(&pool_id);
         self.pool_metadata_by_id.insert(&pool_id, &pool);
         pool
     }
 
     fn start_voting(&mut self) {}
-    fn change_pool_infor(&mut self) {}
+
+    fn change_pool_infor(&mut self, pool_id: u64, campaign_id: String, time_start_pledge: u64, time_end_pledge: u64) {
+        
+        if let Some(mut pool) = self.pool_metadata_by_id.get(&pool_id) {
+            if env::signer_account_id() != pool.creator_id {
+                env::panic_str("Only the creator of the pool can change its information.");
+            }
+            pool.campaign_id = campaign_id;
+            pool.time_start_pledge = time_start_pledge;
+            pool.time_end_pledge = time_end_pledge;
+            self.pool_metadata_by_id.insert(&pool_id, &pool);
+        } else {
+            env::panic_str("Pool with the given ID does not exist.");
+        }
+    }
     fn refund(&mut self) {}
 
     fn ft_on_transfer(
