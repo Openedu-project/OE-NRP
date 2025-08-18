@@ -18,8 +18,6 @@ impl LaunchpadFeature for Launchpad {
                             ADMIN FUNCTIONS
     ////////////////////////////////////////////////////////////// */
 
-    // todo: change to change_pool_funding_time
-    // todo: chỉ trong status: init mới có thể thay đổi
     fn change_pool_funding_time(&mut self, pool_id: u64, campaign_id: String, time_start_pledge: u64, time_end_pledge: u64) {
         let signer_id = env::signer_account_id();
         
@@ -40,8 +38,6 @@ impl LaunchpadFeature for Launchpad {
                 env::panic_str("Start time must be in the future");
             }
 
-            // todo: một pool gắn với một campaign thì không cần thay đổi
-            pool.campaign_id = campaign_id;
             pool.time_start_pledge = time_start_pledge;
             pool.time_end_pledge = time_end_pledge;
             
@@ -271,6 +267,44 @@ impl LaunchpadFeature for Launchpad {
         self.pool_metadata_by_id.insert(&pool_id, &pool);
     }
 
+    fn withdraw_to_creator(&mut self, pool_id: PoolId, amount: U128) {
+        let signer_id = env::signer_account_id();
+
+        if signer_id != self.owner_id {
+            env::panic_str("Only admin can withdraw funds to the creator.");
+        }
+
+        let mut pool = self.pool_metadata_by_id.get(&pool_id)
+            .expect("Pool does not exist");
+
+        if pool.status != Status::CLOSED {
+            env::panic_str("Pool must be CLOSED to withdraw funds.");
+        }
+
+        if amount.0 > pool.total_balance {
+            env::panic_str("Insufficient pool balance for the requested withdrawal amount.");
+        }
+
+        pool.total_balance -= amount.0;
+
+        cross_edu::ext(pool.token_id.clone())
+            .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
+            .with_attached_deposit(1)
+            .ft_transfer(
+                pool.creator_id.clone(),
+                amount,
+            );
+
+        env::log_str(&format!(
+            "Withdrawn {} tokens to creator {}. Remaining pool balance: {}",
+            amount.0,
+            pool.creator_id,
+            pool.total_balance
+        ));
+
+        self.pool_metadata_by_id.insert(&pool_id, &pool);
+    }
+
     /* //////////////////////////////////////////////////////////////
                             USER FUNCTIONS
     ////////////////////////////////////////////////////////////// */
@@ -411,14 +445,5 @@ impl LaunchpadFeature for Launchpad {
         PromiseOrValue::Value(U128(0))
     }
 
-
-    // todo: admin can withdraw pool.total_balance to creator
-    // theo amount.
-
-    // todo: chia theo từng loại function, admin func, user func, getter func
-
-    /* //////////////////////////////////////////////////////////////
-                            ADMIN FUNCTIONS
-    ////////////////////////////////////////////////////////////// */
 
 }
