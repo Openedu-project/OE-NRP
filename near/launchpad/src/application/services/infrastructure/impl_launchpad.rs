@@ -24,7 +24,7 @@ impl LaunchpadFeature for Launchpad {
                             ADMIN FUNCTIONS
     ////////////////////////////////////////////////////////////// */
 
-    fn change_pool_funding_time(&mut self, pool_id: u64, campaign_id: String, time_start_pledge: u64, time_end_pledge: u64) {
+    fn change_pool_funding_time(&mut self, pool_id: u64, time_start_pledge: u64, time_end_pledge: u64) {
         let signer_id = env::signer_account_id();
         
         if signer_id != self.owner_id {
@@ -252,13 +252,43 @@ impl LaunchpadFeature for Launchpad {
         self.pool_metadata_by_id.insert(&pool_id, &pool);
     }
 
+    fn update_pool_status_to_successful(&mut self, pool_id: PoolId) {
+        let signer_id = env::signer_account_id();
+
+        if signer_id != self.owner_id {
+            env::panic_str("Only the owner can update the pool status to successful.");
+        }
+
+        let mut pool = self.pool_metadata_by_id.get(&pool_id)
+            .expect("Pool does not exist");
+
+        if pool.status != Status::VOTING {
+            env::panic_str("Pool must be in VOTING status to be updated to successful.");
+        }
+
+        let current_time = env::block_timestamp();
+        if current_time <= pool.time_end_pledge {
+            env::panic_str("Current time must be greater than the end time of the pledge period.");
+        }
+
+        pool.status = Status::SUCCESSFUL;
+
+        self.pool_metadata_by_id.insert(&pool_id, &pool);
+
+        env::log_str(&format!(
+            "Pool {} status updated to SUCCESSFUL by owner {}",
+            pool_id,
+            signer_id
+        ));
+    }
+
     /* //////////////////////////////////////////////////////////////
                             USER FUNCTIONS
     ////////////////////////////////////////////////////////////// */
     
 
     #[payable]
-    fn init_pool(&mut self, campaign_id: String, token_id: AccountId, mint_multiple_pledge: u8, time_start_pledge: u64, time_end_pledge: u64, target_funding: u128) -> PoolMetadata {
+    fn init_pool(&mut self, campaign_id: String, token_id: AccountId, mint_multiple_pledge: u128, time_start_pledge: u64, time_end_pledge: u64, target_funding: u128) -> PoolMetadata {
         let pool_id = self.all_pool_id.len() as u64 + 1;
         let creator_id = env::signer_account_id();
         let staking_amount = env::attached_deposit();
