@@ -1,0 +1,15 @@
+Build và get file wasm bằng docker 
+## docker build -t near-build .
+## docker run --rm -v "D:\STIProject\OE-NRP:/contract" near-build 
+##  target/wasm32-unknown-unknown/release/*.wasm
+FT token:
+near create-account ft_1.nvvan.testnet  --masterAccount nvvan.testnet  --initialBalance 2
+near state ft_1.nvvan.testnet
+near deploy ft_1.nvvan.testnet target/wasm32-unknown-unknown/release/ft_token.wasm  --initFunction new_default_meta --initArgs '{"owner_id":"ft_1.nvvan.testnet","total_supply":"1000000000000000000000000000000"}'
+
+Launchpad:
+near create-account launchpad_2.nvvan.testnet  --masterAccount nvvan.testnet  --initialBalance 20
+near state launchpad_2.nvvan.testnet
+
+near deploy  launchpad_2.nvvan.testnet target/wasm32-unknown-unknown/release/launchpad.wasm --initFunction "init" --initArgs '{}'
+
